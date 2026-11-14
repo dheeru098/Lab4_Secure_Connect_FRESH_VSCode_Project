@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lab 4 Chat Tester</title>
+<style>
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:2rem auto;max-width:720px;padding:0 1rem;color:#182331;background:#f8fafc}h1{font-size:1.6rem}p{color:#5c6773}label{display:block;margin-top:1rem;font-weight:600}input,button{font:inherit;padding:.7rem;border:1px solid #bfcad8;border-radius:8px}input{width:100%;box-sizing:border-box}button{background:#146c51;color:white;cursor:pointer;margin-top:.7rem}button:disabled{opacity:.5}#log{margin-top:1.3rem;background:white;border:1px solid #dae2ea;padding:1rem;min-height:170px;max-height:300px;overflow:auto;white-space:pre-wrap;border-radius:8px}.row{display:flex;gap:.5rem}.row input{flex:1}.row button{white-space:nowrap}#status{font-weight:600}
+</style>
+</head>
+<body>
+<h1>Secure Connect - Chat Tester</h1>
+<p>Log in through Postman to obtain a JWT, then paste it below. Open this page in two tabs to test real-time chat.</p>
+<label for="token">JWT token from /api/auth/login</label>
+<input id="token" type="password" autocomplete="off" placeholder="Paste the token here">
+<button id="connect">Connect</button>
+<p id="status">Not connected</p>
+<label for="room">Chat room</label>
+<div class="row"><input id="room" value="general"><button id="join" disabled>Join</button></div>
+<label for="message">Message</label>
+<div class="row"><input id="message" maxlength="1000" placeholder="Type a message"><button id="send" disabled>Send</button></div>
+<div id="log" aria-live="polite"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+let socket;
+let currentRoom='general';
+const token=document.getElementById('token');
+const status=document.getElementById('status');
+const log=document.getElementById('log');
+const join=document.getElementById('join');
+const send=document.getElementById('send');
+function write(text){log.textContent+=text+'\n';log.scrollTop=log.scrollHeight;}
+document.getElementById('connect').onclick=()=>{
+  if(socket)socket.disconnect();
+  socket=io({auth:{token:token.value.trim()},transports:['websocket','polling']});
+  socket.on('connect',()=>{status.textContent='Connected';join.disabled=false;send.disabled=false;write('Connected to the server');});
+  socket.on('connect_error',error=>{status.textContent='Connection failed';write(error.message);});
+  socket.on('chat:joined',data=>write('Joined room: '+data.room));
+  socket.on('chat:message',data=>write('['+data.room+'] '+data.username+': '+data.text));
+  socket.on('disconnect',()=>{status.textContent='Disconnected';join.disabled=true;send.disabled=true;});
+};
+join.onclick=()=>{
+  const room=document.getElementById('room').value.trim();
+  socket.emit('chat:join',{room},result=>{if(result.error)write(result.error);else currentRoom=room;});
+};
+send.onclick=()=>{
+  const input=document.getElementById('message');
+  socket.emit('chat:message',{room:currentRoom,text:input.value},result=>{if(result.error)write(result.error);else input.value='';});
+};
+document.getElementById('message').onkeydown=event=>{if(event.key==='Enter'&&!send.disabled)send.click();};
+</script>
+</body>
+</html>
